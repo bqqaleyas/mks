@@ -1,0 +1,255 @@
+#!/usr/bin/clish
+#372
+#1.37.4
+#2025-12-03
+#14:23:36
+hostname parm10
+
+object-group service ssh
+  port-range 22
+exit
+object-group service dhcp_server
+  port-range 67
+exit
+object-group service dhcp_client
+  port-range 68
+exit
+object-group service ntp
+  port-range 123
+exit
+object-group service dns
+  port-range 53
+exit
+object-group service ssh_custom
+  port-range 1380
+exit
+
+syslog max-files 3
+syslog file-size 512
+syslog file tmpsys:syslog/default
+  severity info
+exit
+
+username admin
+  password encrypted $6$ViZgNt8gTt7KiDMJ$2tr/b/I59mJYj6HB6jO1.yM88Tu48I.QtK804YWcRHTZ2obFwo/ug1jCNsuQt6Dk7wFXerOp22EiEqUqFqXBk.
+exit
+
+boot host auto-config
+boot host auto-update
+
+vlan 2
+exit
+
+no spanning-tree
+
+domain lookup enable
+
+security zone trusted
+exit
+security zone untrusted
+exit
+
+bridge 1
+  vlan 1
+  security-zone trusted
+  ip address 192.168.19.1/24
+  no spanning-tree
+  enable
+exit
+bridge 2
+  vlan 2
+  security-zone untrusted
+  ip address dhcp
+  no spanning-tree
+  enable
+exit
+
+interface gigabitethernet 1/0/1
+  mode switchport
+  switchport access vlan 2
+exit
+interface gigabitethernet 1/0/2
+  mode switchport
+exit
+interface gigabitethernet 1/0/3
+  mode switchport
+exit
+interface gigabitethernet 1/0/4
+  mode switchport
+exit
+interface gigabitethernet 1/0/5
+  mode switchport
+exit
+interface gigabitethernet 1/0/6
+  mode switchport
+exit
+interface gigabitethernet 1/0/7
+  mode switchport
+exit
+interface gigabitethernet 1/0/8
+  mode switchport
+exit
+
+security zone-pair trusted self
+  rule 10
+    action permit
+    match protocol tcp
+    match destination-port object-group ssh
+    enable
+  exit
+  rule 20
+    action permit
+    match protocol icmp
+    enable
+  exit
+  rule 30
+    action permit
+    match protocol udp
+    match source-port object-group dhcp_client
+    match destination-port object-group dhcp_server
+    enable
+  exit
+  rule 40
+    action permit
+    match protocol udp
+    match destination-port object-group ntp
+    enable
+  exit
+  rule 50
+    action permit
+    match protocol tcp
+    match destination-port object-group dns
+    enable
+  exit
+  rule 60
+    action permit
+    match protocol udp
+    match destination-port object-group dns
+    enable
+  exit
+  rule 101
+    description "SSH access from Trusted port 1380"
+    action permit
+    match protocol tcp
+    match destination-port object-group ssh_custom
+    enable
+  exit
+exit
+security zone-pair trusted trusted
+  rule 1
+    action permit
+    enable
+  exit
+exit
+security zone-pair trusted untrusted
+  rule 1
+    action permit
+    enable
+  exit
+exit
+security zone-pair untrusted self
+  rule 1
+    action permit
+    match protocol udp
+    match source-port object-group dhcp_server
+    match destination-port object-group dhcp_client
+    enable
+  exit
+  rule 100
+    description "SSH access from WAN port 1380"
+    action permit
+    match protocol tcp
+    match destination-port object-group ssh_custom
+    enable
+  exit
+exit
+
+security passwords default-expired
+
+nat destination
+  pool CAM11_RTSP
+    ip address 192.168.19.11
+    ip port 554
+  exit
+  pool CAM12_RTSP
+    ip address 192.168.19.12
+    ip port 554
+  exit
+  pool CAM13_RTSP
+    ip address 192.168.19.13
+    ip port 554
+  exit
+  pool CAM14_RTSP
+    ip address 192.168.19.14
+    ip port 554
+  exit
+  pool TR6
+    ip address 192.168.19.16
+    ip port 554
+  exit
+  ruleset RTSP_RULLES
+    rule 200
+      description "RTSP forward 559 to camera 11"
+      match protocol tcp
+      match destination-port port-range 559
+      action destination-nat pool CAM11_RTSP
+      enable
+    exit
+    rule 210
+      description "RTSP forward 560 to camera 12"
+      match protocol tcp
+      match destination-port port-range 560
+      action destination-nat pool CAM12_RTSP
+      enable
+    exit
+    rule 220
+      description "RTSP forward 561 to camera 13"
+      match protocol tcp
+      match destination-port port-range 561
+      action destination-nat pool CAM13_RTSP
+      enable
+    exit
+    rule 230
+      description "RTSP forward 562 to camera 14"
+      match protocol tcp
+      match destination-port port-range 562
+      action destination-nat pool CAM14_RTSP
+      enable
+    exit
+    rule 260
+      description "RTSP forward 564 to tracker 6"
+      match protocol tcp
+      match destination-port port-range 564
+      action destination-nat pool TR6
+      enable
+    exit
+  exit
+exit
+
+nat source
+  ruleset factory
+    to zone untrusted
+    rule 10
+      description "replace 'source ip' by outgoing interface ip address"
+      action source-nat interface
+      enable
+    exit
+  exit
+exit
+
+ip dhcp-server
+ip dhcp-server pool lan-pool
+  network 192.168.19.0/24
+  default-lease-time 014:00:00
+  address-range 192.168.19.50-192.168.19.60
+  default-router 192.168.19.1
+  dns-server 192.168.19.1
+exit
+
+ip ssh server
+ip ssh port 1380
+
+ip tftp client timeout 45
+ntp enable
+ntp broadcast-client enable
+
