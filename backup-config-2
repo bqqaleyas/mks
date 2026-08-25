@@ -1,0 +1,299 @@
+#!/usr/bin/clish
+#404
+#1.40.4
+#2026-06-16
+#12:15:29
+hostname mks1
+
+object-group service ssh
+  port-range 22
+exit
+object-group service dhcp_server
+  port-range 67
+exit
+object-group service dhcp_client
+  port-range 68
+exit
+object-group service ntp
+  port-range 123
+exit
+object-group service dns
+  port-range 53
+exit
+object-group service ssh_port
+  port-range 22
+exit
+object-group service https_port
+  port-range 443
+exit
+object-group service http_port
+  port-range 80
+exit
+object-group service port_8893
+  port-range 8893
+exit
+object-group service port_8894
+  port-range 8894
+exit
+object-group service port_8895
+  port-range 8895
+exit
+object-group service port_4025
+  port-range 4025
+exit
+
+syslog max-files 3
+syslog file-size 512
+syslog file tmpsys:syslog/default
+  severity info
+exit
+
+username admin
+  password encrypted $6$LrdpASIkGLFgGHLJ$MxOiLHMBxo.cIH.e4Z1pXC5IheLkEN4Oen/B3tX5gzzI7GTMnV/TQaiCkTif/vdG354X.p1QHUJ8UrMmwGfIe0
+exit
+
+vlan 40
+  name "Admin network"
+exit
+vlan 2,10,20
+exit
+
+no spanning-tree
+
+domain ip host bitrix24.mobcs.ru 192.168.10.202
+domain ip host mks.local 192.168.10.14
+domain ip host mks.local 192.168.10.6
+domain ip host sed-tessa.mobcs.ru 192.168.10.46
+domain nameserver 212.44.130.6
+domain nameserver 212.44.131.6
+domain name mks.local
+
+security zone trusted
+exit
+security zone untrusted
+exit
+
+bridge 1
+  vlan 1
+  security-zone trusted
+  no spanning-tree
+  enable
+exit
+bridge 2
+  vlan 2
+  security-zone untrusted
+  ip address 195.239.75.18/30
+  no spanning-tree
+  enable
+exit
+bridge 10
+  vlan 10
+  security-zone trusted
+  ip address 192.168.10.1/24
+  no spanning-tree
+  enable
+exit
+bridge 20
+  vlan 20
+  security-zone trusted
+  ip address 192.168.20.1/24
+  no spanning-tree
+  enable
+exit
+bridge 40
+  description "Admin management network"
+  vlan 40
+  security-zone trusted
+  ip address 192.168.40.1/24
+  no spanning-tree
+  enable
+exit
+
+interface gigabitethernet 1/0/1
+  mode switchport
+  switchport access vlan 2
+exit
+interface gigabitethernet 1/0/2
+  mode switchport
+  switchport access vlan 40
+exit
+interface gigabitethernet 1/0/3
+  mode switchport
+  switchport access vlan 10
+exit
+interface gigabitethernet 1/0/4
+  mode switchport
+  switchport access vlan 20
+exit
+interface gigabitethernet 1/0/5
+  mode switchport
+exit
+interface gigabitethernet 1/0/6
+  mode switchport
+exit
+interface gigabitethernet 1/0/7
+  mode switchport
+exit
+interface gigabitethernet 1/0/8
+  mode switchport
+exit
+
+security zone-pair trusted self
+  rule 10
+    action permit
+    match protocol tcp
+    match destination-port object-group ssh
+    enable
+  exit
+  rule 20
+    action permit
+    match protocol icmp
+    enable
+  exit
+  rule 30
+    action permit
+    match protocol udp
+    match source-port object-group dhcp_client
+    match destination-port object-group dhcp_server
+    enable
+  exit
+  rule 40
+    action permit
+    match protocol udp
+    match destination-port object-group ntp
+    enable
+  exit
+  rule 50
+    action permit
+    match protocol tcp
+    match destination-port object-group dns
+    enable
+  exit
+  rule 60
+    action permit
+    match protocol udp
+    match destination-port object-group dns
+    enable
+  exit
+exit
+security zone-pair trusted trusted
+  rule 1
+    action permit
+    enable
+  exit
+exit
+security zone-pair trusted untrusted
+  rule 1
+    action permit
+    enable
+  exit
+exit
+security zone-pair untrusted self
+  rule 1
+    action permit
+    match protocol udp
+    match source-port object-group dhcp_server
+    match destination-port object-group dhcp_client
+    enable
+  exit
+exit
+
+security passwords default-expired
+
+nat destination
+  pool bitrix_pool
+    ip address 192.168.10.202
+  exit
+  pool tessa_pool
+    ip address 192.168.10.46
+  exit
+  ruleset bitrix
+    from zone untrusted
+    rule 5
+      description "SSH to bitrix24 server"
+      match protocol tcp
+      match destination-port object-group ssh_port
+      action destination-nat pool bitrix_pool
+      enable
+    exit
+    rule 10
+      description "HTTPS to bitrix24 server"
+      match protocol tcp
+      match destination-port object-group https_port
+      action destination-nat pool bitrix_pool
+      enable
+    exit
+    rule 15
+      description "HTTP to bitrix24 server"
+      match protocol tcp
+      match destination-port object-group http_port
+      action destination-nat pool bitrix_pool
+      enable
+    exit
+    rule 20
+      description "Port 8893 to bitrix24 server"
+      match protocol tcp
+      match destination-port object-group port_8893
+      action destination-nat pool bitrix_pool
+      enable
+    exit
+    rule 25
+      description "Port 8894 to bitrix24 server"
+      match protocol tcp
+      match destination-port object-group port_8894
+      action destination-nat pool bitrix_pool
+      enable
+    exit
+    rule 30
+      description "Port 8895 to bitrix24 server"
+      match protocol tcp
+      match destination-port object-group port_8895
+      action destination-nat pool bitrix_pool
+      enable
+    exit
+    rule 35
+      description "Tessa: HTTPS (443)"
+      match protocol tcp
+      match destination-port object-group https_port
+      action destination-nat pool tessa_pool
+      enable
+    exit
+    rule 40
+      description "Tessa: Port 4025 -> internal 443"
+      match protocol tcp
+      match destination-port object-group port_4025
+      action destination-nat pool tessa_pool
+      enable
+    exit
+  exit
+  ruleset tessa
+  exit
+exit
+
+nat source
+  ruleset factory
+    to zone untrusted
+    rule 10
+      description "replace 'source ip' by outgoing interface ip address"
+      action source-nat interface
+      enable
+    exit
+  exit
+exit
+
+ip dhcp-server
+ip dhcp-server pool lan-pool
+  network 192.168.1.0/24
+  address-range 192.168.1.2-192.168.1.254
+  default-router 192.168.1.1
+  dns-server 192.168.1.1
+exit
+
+ip route 0.0.0.0/0 195.239.75.17
+
+ip ssh server
+
+ip tftp client timeout 45
+ntp enable
+ntp broadcast-client enable
+
