@@ -41,6 +41,18 @@ exit
 object-group service port_4025
   port-range 4025
 exit
+object-group service port_4825
+exit
+
+object-group network PERM_NET_68
+  ip prefix 192.168.68.0/24
+exit
+object-group network PITER_NET_10
+  ip prefix 192.168.10.0/24
+exit
+object-group network PITER_NET_20
+  ip prefix 192.168.20.0/24
+exit
 
 syslog max-files 3
 syslog file-size 512
@@ -52,10 +64,16 @@ username admin
   password encrypted $6$LrdpASIkGLFgGHLJ$MxOiLHMBxo.cIH.e4Z1pXC5IheLkEN4Oen/B3tX5gzzI7GTMnV/TQaiCkTif/vdG354X.p1QHUJ8UrMmwGfIe0
 exit
 
+vlan 10
+  name "Main LAN"
+exit
+vlan 20
+  name "Telephony"
+exit
 vlan 40
   name "Admin network"
 exit
-vlan 2,10,20
+vlan 2
 exit
 
 no spanning-tree
@@ -71,6 +89,15 @@ domain name mks.local
 security zone trusted
 exit
 security zone untrusted
+exit
+
+router ospf 1
+  router-id 1.1.1.1
+  redistribute connected
+  area 0.0.0.0
+    enable
+  exit
+  enable
 exit
 
 bridge 1
@@ -90,6 +117,8 @@ bridge 10
   vlan 10
   security-zone trusted
   ip address 192.168.10.1/24
+  ip ospf instance 1
+  ip ospf
   no spanning-tree
   enable
 exit
@@ -97,6 +126,8 @@ bridge 20
   vlan 20
   security-zone trusted
   ip address 192.168.20.1/24
+  ip ospf instance 1
+  ip ospf
   no spanning-tree
   enable
 exit
@@ -105,11 +136,14 @@ bridge 40
   vlan 40
   security-zone trusted
   ip address 192.168.40.1/24
+  ip ospf instance 1
+  ip ospf
   no spanning-tree
   enable
 exit
 
 interface gigabitethernet 1/0/1
+  description "WAN (Internet)"
   mode switchport
   switchport access vlan 2
 exit
@@ -122,23 +156,39 @@ interface gigabitethernet 1/0/3
   switchport access vlan 10
 exit
 interface gigabitethernet 1/0/4
+  description "Telephony network (192.168.20.0/24)"
   mode switchport
   switchport access vlan 20
 exit
 interface gigabitethernet 1/0/5
+  description "Main LAN (VLAN 10)"
   mode switchport
+  switchport access vlan 10
 exit
 interface gigabitethernet 1/0/6
+  description "Main LAN (VLAN 10)"
   mode switchport
+  switchport access vlan 10
 exit
 interface gigabitethernet 1/0/7
+  description "Main LAN (VLAN 10) "
   mode switchport
+  switchport access vlan 10
 exit
 interface gigabitethernet 1/0/8
-  mode switchport
+  description "Uplink to ESR-200 #2"
+  security-zone trusted
+  ip address 192.168.200.1/30
+  ip ospf instance 1
+  ip ospf network point-to-point
+  ip ospf
 exit
 
 security zone-pair trusted self
+  rule 1
+    action permit
+    enable
+  exit
   rule 10
     action permit
     match protocol tcp
@@ -196,6 +246,44 @@ security zone-pair untrusted self
     match destination-port object-group dhcp_client
     enable
   exit
+exit
+
+security ike proposal IKE_PROP
+  encryption algorithm aes128
+  dh-group 14
+exit
+
+security ike policy IKE_POLICY
+  pre-shared-key ascii-text encrypted 96BF05589E3911A8D9
+  proposal IKE_PROP
+exit
+
+security ike gateway PERM_GW
+  version v2-only
+  ike-policy IKE_POLICY
+  local address 195.239.75.18
+  local network 192.168.10.0/24
+  remote address 89.185.68.100
+  remote network 192.168.68.0/24
+  mode policy-based
+  dead-peer-detection action restart
+  dead-peer-detection interval 10
+exit
+
+security ipsec proposal IPSEC_PROP
+  encryption algorithm aes128
+  pfs dh-group 14
+exit
+
+security ipsec policy IPSEC_POLICY
+  proposal IPSEC_PROP
+exit
+
+security ipsec vpn PERM_VPN
+  ike establish-tunnel route
+  ike gateway PERM_GW
+  ike ipsec-policy IPSEC_POLICY
+  enable
 exit
 
 security passwords default-expired
@@ -266,13 +354,29 @@ nat destination
       enable
     exit
   exit
-  ruleset tessa
-  exit
 exit
 
 nat source
   ruleset factory
     to zone untrusted
+    rule 5
+      description "No NAT to Perm"
+      match destination-address object-group network PERM_NET_68
+      action source-nat off
+      enable
+    exit
+    rule 6
+      description "No NAT to Perm from 10.0"
+      match source-address object-group network PITER_NET_10
+      action source-nat off
+      enable
+    exit
+    rule 7
+      description "No NAT to Perm from 20.0"
+      match source-address object-group network PITER_NET_20
+      action source-nat off
+      enable
+    exit
     rule 10
       description "replace 'source ip' by outgoing interface ip address"
       action source-nat interface
@@ -282,14 +386,17 @@ nat source
 exit
 
 ip dhcp-server
-ip dhcp-server pool lan-pool
-  network 192.168.1.0/24
-  address-range 192.168.1.2-192.168.1.254
-  default-router 192.168.1.1
-  dns-server 192.168.1.1
+ip dhcp-server pool lan_pool
+  network 192.168.10.0/24
+  default-lease-time 001:00:00
+  address-range 192.168.10.60-192.168.10.254
+  default-router 192.168.10.5
+  dns-server 192.168.10.6,192.168.10.14
 exit
 
 ip route 0.0.0.0/0 195.239.75.17
+ip route 192.168.68.0/24 89.185.68.100
+ip route 89.185.68.100/32 195.239.75.17
 
 ip ssh server
 

@@ -3,7 +3,7 @@
 #1.40.4
 #2026-06-16
 #12:15:29
-hostname mks1
+hostname mks2
 
 object-group service ssh
   port-range 22
@@ -17,9 +17,6 @@ exit
 object-group service ntp
   port-range 123
 exit
-object-group service dns
-  port-range 53
-exit
 
 syslog max-files 3
 syslog file-size 512
@@ -28,57 +25,42 @@ syslog file tmpsys:syslog/default
 exit
 
 username admin
-  password encrypted $6$LrdpASIkGLFgGHLJ$MxOiLHMBxo.cIH.e4Z1pXC5IheLkEN4Oen/B3tX5gzzI7GTMnV/TQaiCkTif/vdG354X.p1QHUJ8UrMmwGfIe0
+  password encrypted $6$Gk52iOzhMPB2exPX$Ms9SexK8XqaN5E42n//Q6Z321jKhuvyWzmDbW1p1SbqzyZhJEKUWb8TOB9Q4M4cD0svxwSjaKUuHZwEXERnp0.
 exit
 
-vlan 40
-  name "Admin network"
-exit
-vlan 2,10,20
+boot host auto-config
+boot host auto-update
+
+vlan 2
 exit
 
 no spanning-tree
-
-domain nameserver 212.44.130.6
-domain nameserver 212.44.131.6
 
 security zone trusted
 exit
 security zone untrusted
 exit
 
+router ospf 1
+  router-id 2.2.2.2
+  redistribute connected
+  area 0.0.0.0
+    enable
+  exit
+  enable
+exit
+
 bridge 1
   vlan 1
   security-zone trusted
+  ip address 192.168.1.1/24
   no spanning-tree
   enable
 exit
 bridge 2
   vlan 2
   security-zone untrusted
-  ip address 195.239.75.18/30
-  no spanning-tree
-  enable
-exit
-bridge 10
-  vlan 10
-  security-zone trusted
-  ip address 192.168.10.1/24
-  no spanning-tree
-  enable
-exit
-bridge 20
-  vlan 20
-  security-zone trusted
-  ip address 192.168.20.1/24
-  no spanning-tree
-  enable
-exit
-bridge 40
-  description "Admin management network"
-  vlan 40
-  security-zone trusted
-  ip address 192.168.40.1/24
+  ip address dhcp
   no spanning-tree
   enable
 exit
@@ -89,15 +71,12 @@ interface gigabitethernet 1/0/1
 exit
 interface gigabitethernet 1/0/2
   mode switchport
-  switchport access vlan 40
 exit
 interface gigabitethernet 1/0/3
   mode switchport
-  switchport access vlan 10
 exit
 interface gigabitethernet 1/0/4
   mode switchport
-  switchport access vlan 20
 exit
 interface gigabitethernet 1/0/5
   mode switchport
@@ -109,9 +88,28 @@ interface gigabitethernet 1/0/7
   mode switchport
 exit
 interface gigabitethernet 1/0/8
-  mode switchport
+  security-zone trusted
+  ip address 192.168.200.2/30
+  ip ospf instance 1
+  ip ospf network point-to-point
+  ip ospf
 exit
 
+snmp-server
+snmp-server community public v2c ro
+
+security zone-pair trusted untrusted
+  rule 1
+    action permit
+    enable
+  exit
+exit
+security zone-pair trusted trusted
+  rule 1
+    action permit
+    enable
+  exit
+exit
 security zone-pair trusted self
   rule 10
     action permit
@@ -138,27 +136,9 @@ security zone-pair trusted self
     enable
   exit
   rule 50
+    description "Allow OSPF protocol from trusted to router"
     action permit
-    match protocol tcp
-    match destination-port object-group dns
-    enable
-  exit
-  rule 60
-    action permit
-    match protocol udp
-    match destination-port object-group dns
-    enable
-  exit
-exit
-security zone-pair trusted trusted
-  rule 1
-    action permit
-    enable
-  exit
-exit
-security zone-pair trusted untrusted
-  rule 1
-    action permit
+    match protocol ospf
     enable
   exit
 exit
@@ -190,14 +170,13 @@ ip dhcp-server pool lan-pool
   network 192.168.1.0/24
   address-range 192.168.1.2-192.168.1.254
   default-router 192.168.1.1
-  dns-server 192.168.1.1
 exit
 
-ip route 0.0.0.0/0 195.239.75.17
+ip route 0.0.0.0/0 192.168.200.1
 
 ip ssh server
+ip ssh dscp 32
 
-ip tftp client timeout 45
 ntp enable
 ntp broadcast-client enable
 
