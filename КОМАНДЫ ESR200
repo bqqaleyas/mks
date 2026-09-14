@@ -1,0 +1,503 @@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+обновление
+
+copy usb://<USB_DISK>:/<firmware-file> system:firmware
+copy usb://B07A-8118:/esr200-1.37.4-build2.firmware  system:firmware
+
+1. Проверить содержимое образов ПО, загруженных на сервисный маршрутизатор:
+esr# show bootvar
+Image   Version                     Date                   Status         After reboot   
+-----   -------------------------   --------------------   ------------   ------------   
+1       1.37.4 build                2025-12-03 14:22:46    Not Active                    
+        2[4b06f2c798]                                                                    
+
+2       1.34.6 build                2025-09-18 11:47:20    Active         *              
+        4[7cbb07a8b0]         
+Выбор раздела ПО для загрузки
+esr# boot system image-1 или 2
+Выбор раздела ПО для загрузки для ПО, начиная с версии 1.24.0
+esr# boot system inactive 
+3. Проверить, что образ, содержащий ПО обновленной версии, выбран для загрузки:
+
+esr# show bootvar
+
+Image   Version                     Date                   Status         After reboot   
+-----   -------------------------   --------------------   ------------   ------------   
+1       1.37.4 build                2025-12-03 14:22:46    Not Active     *              
+        2[4b06f2c798]                                                      
+
+
+
+esr# reload system
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+clear ip dhcp binding активация dhcp запроса 
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+show running-config | include rule | counter   просмотр счетчика правил
+
+show running-config | begin "rule 100"
+
+show running-config | include "rule 1*"
+
+show running-config | include sshshow running-config | begin "security zone-pair trusted self"  просмотр правил в зоне
+ 
+show running-config | begin "object-group"     просмотр обьектов с содержимым ( через прокрутку)
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+просмотр всех зон
+show running-config | include "security zone-pair"
+security zone-pair trusted self
+security zone-pair trusted trusted
+security zone-pair trusted untrusted
+security zone-pair untrusted self
+security zone-pair untrusted trusted
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+добавление правил алгоритм
+permsklad# configure
+permsklad(config)# security zone-pair trusted self
+permsklad(config-zone-pair)# rule 120
+permsklad(config-zone-rule)# action permit
+permsklad(config-zone-rule)# match protocol tcp
+permsklad(config-zone-rule)# match destination-port object-group ssh1380  ссылка на обьект 
+permsklad(config-zone-rule)# enable
+permsklad(config-zone-rule)# exit
+permsklad(config-zone-pair)# exit
+permsklad(config)# exit
+
+show running-config | include "ssh1380" проверка обьекта
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+содание обьекта
+permsklad# configure
+permsklad(config)# object-group service <name>
+permsklad(config-object-group-service)# port-range 2222  атрибуты
+permsklad(config-object-group-service)# exit
+permsklad(config)# exit
+ 
+show running-config | include "object-group"  просмотр всех обьектов 
+
+show running-config | begin "object-group service"  просмотр обьеатов по типам ПОРТЫ
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+У вас настроено 5 zone-pair (пар зон безопасности). Вот что каждый из них означает:
+
+1. security zone-pair trusted self
+Смысл: Трафик из доверенной зоны (trusted) в само устройство (self)
+Откуда: bridge 1 (192.168.68.1/24) и всё, что за ним
+Куда: Сам ESR (SSH, ping, DNS, NTP, DHCP и т.д.)
+Разрешено:
+TCP-порт 22 (SSH) — rule 10
+ICMP (ping) — rule 20
+DHCP (клиент→сервер) — rule 30
+NTP (порт 123) — rule 40
+DNS TCP (порт 53) — rule 50
+DNS UDP (порт 53) — rule 60
+ВСЁ остальное — rule 100 (опасно широкое правило!)
+SSH на порт 1380 — rule 110
+
+⚠️ Внимание: rule 100 разрешает любой трафик из trusted в self. Это сводит на нет все остальные правила, так как всё уже разрешено. По сути, rules 10-60 и 110 — избыточны.
+
+2. security zone-pair trusted trusted
+Смысл: Трафик из доверенной зоны в доверенную зону (внутри одной зоны)
+Откуда: bridge 1 → bridge 1
+Куда: Туда же
+Ваши правила: 1
+Разрешено: ВСЁ (action permit, enable)
+Типично: Обычно разрешают всё внутри одной зоны, это нормально.
+
+3. security zone-pair trusted untrusted
+Смысл: Трафик из доверенной зоны в недоверенную (trusted → untrusted)
+Откуда: bridge 1 (192.168.68.0/24)
+Куда: bridge 2 (46.146.140.150/24) и далее в интернет
+Ваши правила: 1
+Разрешено: ВСЁ (action permit, enable)
+Типично: Обычно из trusted в untrusted разрешают всё (исходящий трафик в интернет). Это нормально.
+
+4. security zone-pair untrusted self
+Смысл: Трафик из недоверенной зоны в само устройство (untrusted → self)
+Откуда: Интернет (bridge 2, 46.146.140.150/24)
+Куда: Сам ESR
+Ваши правила: 1, 2, 3, 100, 101, 110
+Разрешено:
+DHCP (сервер→клиент) — rule 1
+TCP-порт 22 (SSH со стороны WAN) — rule 2
+ICMP (ping снаружи) — rule 3
+ISAKMP (UDP 500/4500 для VPN) — rule 100
+ESP (IPsec VPN) — rule 101
+SSH на порт 1380 — rule 110
+
+✅ Здесь всё логично: из интернета к устройству разрешён только минимум (VPN, SSH, DHCP-ответы). Остальное заблокировано (нет rule с разрешением всего).
+
+5. security zone-pair untrusted trusted
+Смысл: Трафик из недоверенной зоны в доверенную (untrusted → trusted)
+
+Откуда: Интернет (46.146.140.150/24)
+Куда: bridge 1 (192.168.68.0/24)
+Ваши правила: 1
+Разрешено: ВСЁ (action permit, enable)
+⚠️ Потенциальная проблема: Это правило разрешает ЛЮБОЙ трафик из интернета в вашу локальную сеть. Если у вас нет других ограничений (например, файрвол на самом сервере 192.168.68.11), это может быть небезопасно. Обычно из untrusted в trusted разрешают только ответы на уже установленные соединения (established/related), а не всё подряд.
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+      
+esr(config)# system config-confirm timeout 300   
+show interfaces status bridge
+
+show running-config bridges 
+ 
+clear ip firewall session 
+
+show ip firewall sessions 
+
+Проверка подключения USB накопителя 
+esr-200# show storage-device
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+Остановите другие TFTP-серверы, которые могут конфликтовать:
+sudo systemctl stop tftp.socket
+sudo systemctl stop xinetd
+
+Запустите TFTP-сервер вручную с поддержкой записи:
+sudo in.tftpd -l -c -s /home/user --address 192.168.10.158:69
+
+На роутере выполните команду копирования:
+permsklad# copy system:running-config tftp://192.168.10.158:/esr200_full_working
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+show running-config | begin "nat destination"    просмотр секции
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+Добрый день!
+
+Пример записи текущей конфигурации на USB накопитель и копирования конфигурации из файла с USB накопителя: 
+
+# Проверка подключения USB накопителя 
+esr-200# show storage-devices usb 
+Name                             Filesystem   Total, MB    Used, MB     Free, MB     
+------------------------------   ----------   ----------   ----------   ----------   
+TEST                             vfat         14790.53     70.57        14719.96     
+
+# Копирование текущей конфигурации на USB накопитель
+esr-200# copy system:running-config usb://TEST:/esr200_config
+|******************************************| 100% (2126B) Success!
+
+# Проверка файла на USB накопителе
+esr-100# dir usb://B07A-8118:/
+Name                                                         Type         Size            Last modified               
+----------------------------------------------------------   ----------   --------   --   -------------------------     
+esr200_config                                                File         2.08       KB   Thu Mar 10 07:11:04 2011
+
+# Копирования конфигурации из файла с USB накопителя: 
+esr-200# copy usb://TEST:/esr200_config system:candidate-config 
+|******************************************| 100% (2126B) Configuration loaded successfully.
+
+# Проверка и применение конфигурации
+esr-200# show candidate-config 
+esr-200# commit
+esr-200# confirm
+
+Также возможно рассмотреть функционал archive. 
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+copy system:default-config system:candidate-config
+copy usb://B07A-8118:/esr200_full_parm1 system:candidate-config
+commit
+confirm
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# 1. Подключиться
+ssh -o HostKeyAlgorithms=+ssh-rsa admin@192.168.11.53
+
+# 2. Загрузить файлы
+copy tftp://192.168.11.50/mes2400-1043-4R0.boot boot
+copy tftp://192.168.11.50/mes2400-1043-4R0.iss image
+
+# 3. Переключиться и перезагрузить
+boot system inactive
+reload
+# При запросе: Y
+
+# 4. После перезагрузки проверить
+ssh -o HostKeyAlgorithms=+ssh-rsa admin@192.168.11.53
+show bootvar
+
+🃏️
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+обновление esr 200
+copy usb://B07A-8118:/esr200-1.37.4-build2.firmware system:firmware
+
+copy usb://B07A-8118:/esr200-1.37.4-build2.uboot system:boot-2
+
+show bootvar
+Выбор раздела ПО для загрузки
+esr# boot system image-1
+
+Загрузка ПО с USB-носителя
+esr# copy usb://<USB_DISK>:/<firmware-file> system:firmware
+
+|******************************************| 100% (73786kB) Firmware updated successfully
+
+esr# copy usb://<USB_DISK>:/<uboot-file> system:boot-2
+
+|******************************************| 100% (697kB) Bootloader updated successfully.
+
+Загрузка ПО с MMC-носителя
+esr# copy mmc://<MMC_DISK>:/<firmware-file> system:firmware
+
+|******************************************| 100% (73786kB) Firmware updated successfully.
+
+esr# copy usb://<MMC_DISK>:/<uboot-file> system:boot-2
+
+|******************************************| 100% (697kB) Bootloader updated successfully.
+
+<USB_DISK> – имя раздела на USB-носителе;
+<MMC_DISK> – имя раздела на MMC-носителе.
+Выбор образа ПО обновленной версии для следующей загрузки
+На сервисных маршрутизаторах ESR одновременно хранится два образа ПО (image-1 и image-2).
+
+1. Проверить содержимое образов ПО загруженных на сервисный маршрутизатор:
+
+esr# show bootvar
+
+Image   Version                     Date                   Status         After reboot   
+-----   -------------------------   --------------------   ------------   ------------   
+1       1.37.4 build                date 03/12/2025 time   Not Active                    
+        2[4b06f2c798]               14:22:46                                             
+
+2       1.17.0 build 9[3f50cfbd1]   date 22/07/2022 time   Active         *              
+                                    22:14:07
+
+При загрузке файла ПО в раздел system:firmware загрузка осуществляется всегда в неактивный в данный момент раздел.
+
+2. Выбрать раздел, содержащий ПО обновленной версии в качестве загрузочного:
+
+Выбор раздела ПО для загрузки
+esr#boot system image-1
+Do you really want to set boot system image? (y/N): y
+
+3. Проверить, что образ, содержащий ПО обновленной версии, выбран для загрузки:
+
+esr# show bootvar
+
+Image   Version                     Date                   Status         After reboot   
+-----   -------------------------   --------------------   ------------   ------------   
+1       1.37.4 build                date 03/12/2025 time   Not Active     *              
+        2[4b06f2c798]               14:22:46                                             
+
+2       1.17.0 build 9[3f50cfbd1]   date 22/07/2022 time   Active                        
+                                    22:14:07
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+sudo ip link set enp1s0 down && sudo ip addr flush dev enp1s0 && sudo ip link set enp1s0 up && sudo dhclient enp1s0    🃏️
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+show interfaces status gigabitethernet 1/0/1
+show interfaces counters gigabitethernet 1/0/1
+show interfaces switch-port status
+renew dhcp bridge 2
+show ip interfaces 
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+copy flash:data/test.pcap tftp://192.168.10.158/test.pcap
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Проверьте на ESR, пытается ли СУРВ-3 установить соединение
+
+show ip firewall sessions | include 192.168.68.9
+После прикладывания карты должно появиться новое соединение с портом 5010.
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+configure
+system config-confirm timeout 1200
+exit
+commit
+confirm
+просмотр логов
+show syslog tmpsys:syslog/default
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@PERM@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+configure
+
+vlan 3
+exit
+
+bridge 3
+  description "New Provider (Perm Telecom)"
+  vlan 3
+  security-zone untrusted
+  ip address 89.185.68.100/24
+  no spanning-tree
+  enable
+exit
+
+interface gigabitethernet 1/0/8
+  mode switchport
+  security-zone untrusted
+  switchport access vlan 3
+  enable
+exit
+
+domain nameserver 89.185.75.243
+domain nameserver 89.185.75.244
+
+! Добавляем новый маршрут (метрика не важна, но для порядка поставим 10)
+ip route 0.0.0.0/0 89.185.68.1 10
+
+end
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+УДАЛЯЕМ СТАРЫЕ ПРОВАЙДЕРЫ
+configure
+
+! 1. Удаляем старый маршрут по умолчанию
+no ip route 0.0.0.0/0 46.146.140.254
+
+! 2. Убираем метрику у нового маршрута (делаем его основным)
+ip route 0.0.0.0/0 89.185.68.1
+
+! 3. Удаляем старые маршруты к удаленным сетям
+no ip route 192.168.10.0/24 46.146.140.254
+no ip route 192.168.20.0/24 46.146.140.254
+
+! 4. Удаляем старый bridge 2 (он больше не нужен)
+no bridge 2
+
+! 5. Удаляем порт 1/0/1 из VLAN 2 (или вообще выключаем)
+interface gigabitethernet 1/0/1
+  no switchport access vlan 2
+  shutdown
+exit
+
+! 6. (Опционально) Удаляем старые DNS, если они были
+no domain nameserver 212.33.225.212
+no domain nameserver 5.3.3.3
+
+end
+
+! 7. Проверяем маршруты
+show ip route
+
+! 8. Коммитим
+commit
+write memory
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@тунель@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+show security ipsec vpn configuration MIKROTIK_VPN
+ОПТИМИЗАЦИЯ ШИФРОВАНИЯ
+security ike proposal MIKROTIK_IKE_PROP
+  authentication algorithm sha1           # вместо sha2-256
+  encryption algorithm aes128             # вместо aes256
+  dh-group 14
+exit
+
+security ipsec proposal MIKROTIK_IPSEC_PROP
+  authentication algorithm sha1           # вместо sha2-256
+  encryption algorithm aes128             # вместо aes256
+  pfs dh-group 14
+exit
+
+show security ipsec vpn status
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ ПОЛНЫЙ НАБОР СМЕНЫ ШИФРОВАНИЯ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+configure terminal
+
+security ike proposal MIKROTIK_IKE_PROP
+  authentication algorithm sha1
+  encryption algorithm aes128
+  dh-group 14
+exit
+
+security ipsec proposal MIKROTIK_IPSEC_PROP
+  authentication algorithm sha1
+  encryption algorithm aes128
+  pfs dh-group 14
+exit
+
+security ike gateway MIKROTIK_GW
+  dead-peer-detection interval 30
+exit
+
+security ipsec vpn MIKROTIK_VPN
+  mtu 1400
+exit
+
+write memory
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@✅ Итоговые настройки туннеля@@@@@@@@@@@@@@@@
+
+На ESR (Пермь):
+bash
+# WAN-интерфейс (новый)
+interface bridge 3
+ ip address 89.185.68.100/24
+exit
+
+# IKE gateway (новый локальный адрес)
+security ike gateway MIKROTIK_GW
+ local address 89.185.68.100
+exit
+
+# Маршрут по умолчанию (если шлюз изменился)
+ip route 0.0.0.0/0 89.185.68.1
+На MikroTik (СПб):
+bash
+# Удалённый адрес ESR (новый)
+/ip ipsec peer set esr-perm address=89.185.68.100/32
+⚡ После переключения кабеля
+На ESR проверьте, что интерфейс поднялся:
+
+bash
+show ip interfaces
+У br3 должно быть Link: Up.
+
+Сбросьте IPsec-сессии:
+
+bash
+clear security ike sa
+Проверьте статус туннеля:
+
+bash
+show security ipsec vpn status
+Должно быть Established с новым IP-адресом.
+
+Проверьте ping:
+
+bash
+ping 195.239.75.18 source 89.185.68.100
+Если туннель не поднимается — покажите:
+bash
+show security ipsec vpn status
+show ip interfaces
+На MikroTik:
+
+bash
+/ip ipsec active-peers print
+Этот ответ сгенерирован AI, только для справки.
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+configure
+
+# 1. Меняем IP-адрес на br2
+interface bridge 2
+ no ip address 46.146.140.150/24
+ ip address 89.185.68.100/24
+exit
+
+# 2. Меняем маршрут по умолчанию (шлюз)
+ip route 0.0.0.0/0 89.185.68.1
+
+# 3. Меняем DNS-серверы на новые
+no domain nameserver 212.33.225.212
+no domain nameserver 5.3.3.3
+domain nameserver 89.185.75.243
+domain nameserver 89.185.75.244
+
+# 4. Меняем локальный адрес в IKE gateway
+security ike gateway MIKROTIK_GW
+ local address 89.185.68.100
+exit
+
+commit
+confirm
+
+# 5. Сбрасываем IPsec
+clear security ike sa
+
+# 6. Проверяем
+show ip interfaces
+show security ipsec vpn status
+ping 89.185.68.1
+ping 89.185.75.243
+ping 195.239.75.18 source 89.185.68.100
+
