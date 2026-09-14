@@ -1,0 +1,494 @@
+permsklad# show running-config 
+hostname permsklad
+
+object-group service ssh
+  port-range 22
+exit
+object-group service dhcp_server
+  port-range 67
+exit
+object-group service dhcp_client
+  port-range 68
+exit
+object-group service ntp
+  port-range 123
+exit
+object-group service dns
+  port-range 53
+exit
+object-group service isakmp
+  port-range 500
+  port-range 4500
+exit
+object-group service SSH_NEW
+  port-range 1380
+exit
+object-group service ssh1380
+  port-range 1380
+exit
+object-group service PORT_5010
+  port-range 5010
+exit
+
+object-group network TIMECONTROL_SRV
+  ip prefix 192.168.10.12/32
+exit
+object-group network remote_net
+  ip prefix 192.168.10.0/24
+exit
+object-group network remote_net_20
+  ip prefix 192.168.20.0/24
+exit
+
+syslog max-files 5
+syslog file-size 1024
+syslog cli-commands
+syslog file tmpsys:syslog/default
+  severity info
+exit
+syslog file tmpsys:syslog/commands
+  severity info
+exit
+
+username admin
+  password encrypted $6$hebj4gMm80XwFPd5$M1.VivAi19YBvGMrJfg4MXtt6xOLiBtQ5hfEcqqfGXWpwo2o2NT.yqVopgpXC0O25waCfFvirNffyu31Xeq5r/
+exit
+username mks
+  password encrypted $6$6EicgRBmZisxemBW$5kbJE1wc9rL9GHQJ8NGANhRg/DRbDFB9ZYToLjrYZpY7S2HXm7BgwqplwiUftBUYAqhkzqMSlYMWblBdc7WaV0
+  privilege 15
+exit
+username techsupport
+  password encrypted $6$Yz72C3GjGiTYUSVa$dj74idWTrk56opTNrlelzg1MkYYM8nIjioJ2gbcivllLK77Xs.fQJAFRcUUc7H3b3YRnY.ZOMkwIVMw//i2iQ1
+exit
+
+system config-confirm timeout 1200
+
+vlan 2
+exit
+
+no spanning-tree
+
+domain lookup enable
+domain nameserver 212.33.225.212
+domain nameserver 5.3.3.3
+
+security zone trusted
+exit
+security zone untrusted
+exit
+
+bridge 1
+  description "test network"
+  vlan 1
+  security-zone trusted
+  ip address 192.168.68.1/24
+  no spanning-tree
+  enable
+exit
+bridge 2
+  vlan 2
+  security-zone untrusted
+  ip address 46.146.140.150/24
+  no spanning-tree
+  enable
+exit
+bridge 10
+  enable
+exit
+
+interface gigabitethernet 1/0/1
+  mode switchport
+  security-zone trusted
+  switchport access vlan 2
+exit
+interface gigabitethernet 1/0/2
+  mode switchport
+exit
+interface gigabitethernet 1/0/3
+  mode switchport
+exit
+interface gigabitethernet 1/0/4
+  mode switchport
+exit
+interface gigabitethernet 1/0/5
+  mode switchport
+exit
+interface gigabitethernet 1/0/6
+  mode switchport
+exit
+interface gigabitethernet 1/0/7
+  mode switchport
+exit
+interface gigabitethernet 1/0/8
+  mode switchport
+exit
+
+tunnel gre 10
+  description "GRE for SURV-3"
+  local address 46.146.140.150
+  remote address 195.239.75.18
+  ip address 10.254.254.1/30
+  enable
+exit
+
+snmp-server
+snmp-server community public ro
+
+security zone-pair trusted self
+  rule 10
+    action permit
+    match protocol tcp
+    match destination-port object-group ssh
+    enable
+  exit
+  rule 20
+    action permit
+    match protocol icmp
+    enable
+  exit
+  rule 30
+    action permit
+    match protocol udp
+    match source-port object-group dhcp_client
+    match destination-port object-group dhcp_server
+    enable
+  exit
+  rule 40
+    action permit
+    match protocol udp
+    match destination-port object-group ntp
+    enable
+  exit
+  rule 50
+    action permit
+    match protocol tcp
+    match destination-port object-group dns
+    enable
+  exit
+  rule 60
+    action permit
+    match protocol udp
+    match destination-port object-group dns
+    enable
+  exit
+  rule 100
+    action permit
+    enable
+  exit
+  rule 110
+    action permit
+    match protocol tcp
+    match destination-port object-group ssh1380
+    enable
+  exit
+  rule 180
+    action permit
+    match protocol udp
+    match destination-port port-range 161
+    enable
+  exit
+exit
+security zone-pair trusted trusted
+  rule 1
+    action permit
+    enable
+  exit
+exit
+security zone-pair trusted untrusted
+  rule 1
+    action permit
+    enable
+  exit
+exit
+security zone-pair untrusted self
+  rule 1
+    action permit
+    match protocol udp
+    match source-port object-group dhcp_server
+    match destination-port object-group dhcp_client
+    enable
+  exit
+  rule 2
+    action permit
+    match protocol tcp
+    match destination-port object-group ssh
+    enable
+  exit
+  rule 3
+    action permit
+    match protocol icmp
+    enable
+  exit
+  rule 100
+    action permit
+    match protocol udp
+    match destination-port object-group isakmp
+    enable
+  exit
+  rule 101
+    action permit
+    match protocol esp
+    enable
+  exit
+  rule 110
+    action permit
+    match protocol tcp
+    match destination-port object-group ssh1380
+    enable
+  exit
+  rule 800
+    action permit
+    match protocol tcp
+    match destination-port port-range 10050
+    enable
+  exit
+exit
+security zone-pair untrusted trusted
+  rule 1
+    action permit
+    enable
+  exit
+  rule 10
+    action permit
+    match destination-nat
+    enable
+  exit
+exit
+
+security ike proposal MIKROTIK_IKE_PROP
+  authentication algorithm sha2-256
+  encryption algorithm aes256
+  dh-group 14
+exit
+
+security ike policy MIKROTIK_IKE_POLICY
+  pre-shared-key ascii-text encrypted 96B805589E3911A8C0
+  proposal MIKROTIK_IKE_PROP
+exit
+
+security ike gateway MIKROTIK_GW
+  version v2-only
+  ike-policy MIKROTIK_IKE_POLICY
+  local address 46.146.140.150
+  local network 192.168.68.0/24
+  remote address 195.239.75.18
+  remote network 192.168.10.0/24
+  remote network 192.168.20.0/24
+  mode policy-based
+  dead-peer-detection action restart
+  dead-peer-detection interval 10
+exit
+
+security ipsec proposal MIKROTIK_IPSEC_PROP
+  authentication algorithm sha2-256
+  encryption algorithm aes256
+  pfs dh-group 14
+exit
+
+security ipsec policy MIKROTIK_IPSEC_POLICY
+  proposal MIKROTIK_IPSEC_PROP
+exit
+
+security ipsec vpn MIKROTIK_VPN
+  ike establish-tunnel route
+  ike gateway MIKROTIK_GW
+  ike ipsec-policy MIKROTIK_IPSEC_POLICY
+  enable
+exit
+
+security passwords default-expired
+
+ip firewall sessions tcp-estabilished-timeout 86400
+ip firewall sessions tcp-connect-timeout 300
+ip firewall sessions tcp-disconnect-timeout 60
+
+nat destination
+  pool CAM2_RTSP
+    ip address 192.168.68.12
+    ip port 554
+  exit
+  pool CAM3_RTSP
+    ip address 192.168.68.13
+    ip port 554
+  exit
+  pool CAM4_RTSP
+    ip address 192.168.68.14
+    ip port 554
+  exit
+  pool CAM5_RTSP
+    ip address 192.168.68.15
+    ip port 554
+  exit
+  pool CAM6_RTSP
+    ip address 192.168.68.16
+    ip port 554
+  exit
+  pool CAMERA_RTSP
+    ip address 192.168.68.11
+    ip port 554
+  exit
+  pool SURF_PERM
+    ip address 192.168.68.9
+    ip port 5010
+  exit
+  pool SURF_PERM_5010
+    ip address 192.168.68.9
+  exit
+  pool TRASSIR_VIDEO_8089
+    ip address 192.168.68.10
+    ip port 8089
+  exit
+  pool TRASSIR_Web_8088
+    ip address 192.168.68.10
+    ip port 8088
+  exit
+  ruleset from_untrusted
+    from zone untrusted
+    rule 1
+      description "Port forward 555 to camera RTSP 554"
+      match protocol tcp
+    exit
+    rule 10
+      description "RTSP forward external 559 to camera 554"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 559
+      action destination-nat pool CAMERA_RTSP
+      enable
+    exit
+    rule 20
+      description "Port forward 560 to camera 192.168.68.12 RTSP 554"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 560
+      action destination-nat pool CAM2_RTSP
+      enable
+    exit
+    rule 30
+      description "Port forward 561 to camera 192.168.68.13 RTSP 554"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 561
+      action destination-nat pool CAM3_RTSP
+      enable
+    exit
+    rule 40
+      description "Port forward 562 to camera 192.168.68.14 RTSP 554"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 562
+      action destination-nat pool CAM4_RTSP
+      enable
+    exit
+    rule 50
+      description "Port forward 563 to camera 192.168.68.15 RTSP 554"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 563
+      action destination-nat pool CAM5_RTSP
+      enable
+    exit
+    rule 60
+      description "Port forward 564 to camera 192.168.68.16 RTSP 554"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 564
+      action destination-nat pool CAM6_RTSP
+      enable
+    exit
+    rule 70
+      description "TRASSIR_Web_8088"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 8088
+      action destination-nat pool TRASSIR_Web_8088
+      enable
+    exit
+    rule 80
+      description "TRASSIR_Video_8089"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 8089
+      action destination-nat pool TRASSIR_VIDEO_8089
+      enable
+    exit
+    rule 90
+      description "SURF_TCP_5060"
+      match protocol tcp
+      match destination-address address-range 46.146.140.150
+      match destination-port port-range 5010
+      action destination-nat pool SURF_PERM_5010
+    exit
+  exit
+exit
+
+nat source
+  ruleset factory
+    to zone untrusted
+    rule 7
+      description "NO SNAT to TimeControl Server"
+      match protocol tcp
+      match destination-address object-group network TIMECONTROL_SRV
+      match destination-port port-range 5010
+      action source-nat off
+      enable
+    exit
+    rule 8
+      match destination-address object-group network remote_net_20
+      action source-nat off
+      enable
+    exit
+    rule 9
+      match destination-address object-group network remote_net
+      action source-nat off
+      enable
+    exit
+    rule 10
+      description "replace 'source ip' by outgoing interface ip address"
+      action source-nat interface
+      enable
+    exit
+  exit
+exit
+
+ip dhcp-server
+ip dhcp-server pool lan-pool
+  network 192.168.68.0/24
+  max-lease-time 060:00:00
+  default-lease-time 060:00:00
+  address-range 192.168.68.100-192.168.68.199
+  default-router 192.168.68.1
+  dns-server 5.3.3.3,212.33.225.212
+exit
+
+ip route 0.0.0.0/0 46.146.140.254
+ip route 192.168.10.12/32 10.254.254.2
+
+ip ssh server
+ip ssh port 1380
+
+ip tftp client timeout 45
+clock timezone gmt +5
+
+ntp enable
+ntp server ntp.msk-ix.ru
+  prefer
+exit
+ntp server 0.ru.pool.ntp.org
+exit
+ntp server ntp1.vniiftri.ru
+exit
+
+zabbix-agent
+  active-server 192.168.10.25 port 10051
+  hostname permsklad
+  remote-commands
+  server 192.168.10.25
+  timeout 30
+  enable
+exit
+
+ip tftp server
+  enable
+exit
+
